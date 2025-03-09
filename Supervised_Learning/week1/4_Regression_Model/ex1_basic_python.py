@@ -12,11 +12,18 @@ def compute_model_output(x, w, b):
     Returns
       y (ndarray (m,)): target values
     """
+
+    """
+    # loop implementation
     m = x.shape[0]
     f_wb = np.zeros(m)
     for i in range(m):
         f_wb[i] = w * x[i] + b
-        
+    """
+
+    # vectorized implementation
+    f_wb = w*x + b
+          
     return f_wb
 
 
