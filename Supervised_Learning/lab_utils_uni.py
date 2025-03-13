@@ -298,7 +298,7 @@ def plt_divergence(p_hist, J_hist, x_train,y_train):
     # Print w vs cost to see minimum
     fix_b = 100
     w_array = np.arange(-70000, 70000, 1000)
-    cost = np.zeros_like(w_array)
+    cost = np.zeros_like(w_array, np.int64)  # fix for windows
 
     for i in range(len(w_array)):
         tmp_w = w_array[i]
@@ -316,7 +316,7 @@ def plt_divergence(p_hist, J_hist, x_train,y_train):
     #===============
 
     tmp_b,tmp_w = np.meshgrid(np.arange(-35000, 35000, 500),np.arange(-70000, 70000, 500))
-    z=np.zeros_like(tmp_b)
+    z=np.zeros_like(tmp_b, np.int64)  # fix for windows
     for i in range(tmp_w.shape[0]):
         for j in range(tmp_w.shape[1]):
             z[i][j] = compute_cost(x_train, y_train, tmp_w[i][j], tmp_b[i][j] )
@@ -344,7 +344,7 @@ def add_line(dj_dx, x1, y1, d, ax):
     ax.scatter(x1, y1, color=dlblue, s=50)
     ax.plot(x, y, '--', c=dldarkred,zorder=10, linewidth = 1)
     xoff = 30 if x1 == 200 else 10
-    ax.annotate(r"$\frac{\partial J}{\partial w}$ =%d" % dj_dx, fontsize=14,
+    ax.annotate(r"$\frac{\partial J}{\partial w}$ =%.2f" % dj_dx, fontsize=14,
                 xy=(x1, y1), xycoords='data',
             xytext=(xoff, 10), textcoords='offset points',
             arrowprops=dict(arrowstyle="->"),
@@ -396,3 +396,61 @@ def plt_gradients(x_train,y_train, f_compute_cost, f_compute_gradient):
     Q = ax[1].quiver(X, Y, U, V, color_array, units='width', )
     ax[1].quiverkey(Q, 0.9, 0.9, 2, r'$2 \frac{m}{s}$', labelpos='E',coordinates='figure')
     ax[1].set_xlabel("w"); ax[1].set_ylabel("b")
+
+def plt_gradients_new(x_train, y_train, f_compute_cost, f_compute_gradient):
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+
+    # === Subplot 1: Cost vs w ===
+    fix_b = -0.06
+    w_array = np.linspace(0.90, 1.10, 200)
+    cost = np.zeros_like(w_array)
+
+    for i in range(len(w_array)):
+        tmp_w = w_array[i]
+        cost[i] = f_compute_cost(x_train, y_train, tmp_w, fix_b)
+
+    ax[0].plot(w_array, cost, linewidth=1)
+    ax[0].set_title("Cost vs w (with gradient), b fixed at -0.06")
+    ax[0].set_ylabel('Cost')
+    ax[0].set_xlabel('w')
+
+    # Add gradient direction lines at sample points
+    for tmp_w in [0.90, 1.0, 1.05]:
+        dj_dw, dj_db = f_compute_gradient(x_train, y_train, tmp_w, fix_b)
+        j = f_compute_cost(x_train, y_train, tmp_w, fix_b)
+        add_line(dj_dw, tmp_w, j, 0.02, ax[0])
+
+    # === Subplot 2: Gradient Field (Quiver) ===
+    w_vals = np.linspace(0.92, 1.12, 20)
+    b_vals = np.linspace(-0.06, 0.06, 20)
+    tmp_w, tmp_b = np.meshgrid(w_vals, b_vals)
+
+    U = np.zeros_like(tmp_w)
+    V = np.zeros_like(tmp_b)
+    Z = np.zeros_like(tmp_w)
+
+    # Compute gradients and cost at each point
+    for i in range(tmp_w.shape[0]):
+        for j in range(tmp_w.shape[1]):
+            grad_w, grad_b = f_compute_gradient(x_train, y_train, tmp_w[i][j], tmp_b[i][j])
+            U[i][j] = -grad_w  # negative gradient
+            V[i][j] = -grad_b
+            Z[i][j] = f_compute_cost(x_train, y_train, tmp_w[i][j], tmp_b[i][j])
+
+    # Normalize gradient vectors
+    magnitude = np.sqrt(U**2 + V**2)
+    magnitude[magnitude == 0] = 1  # prevent division by zero
+    U_norm = U / magnitude
+    V_norm = V / magnitude
+
+    # Plot cost contours
+    ax[1].contour(tmp_w, tmp_b, Z, levels=20, cmap='coolwarm', alpha=0.6)
+
+    # Plot quiver using normalized arrows (same size, better visibility)
+    Q = ax[1].quiver(tmp_w, tmp_b, U_norm, V_norm, magnitude, cmap='viridis', scale=20)
+    ax[1].quiverkey(Q, 0.9, 0.9, 1, r'$||\nabla J|| = 1$', labelpos='E', coordinates='figure')
+    ax[1].set_title('Gradient Field (Quiver Plot)')
+    ax[1].set_xlabel("w")
+    ax[1].set_ylabel("b")
+
+

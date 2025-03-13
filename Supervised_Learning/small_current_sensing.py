@@ -1,0 +1,211 @@
+"""
+implement gradient decent for linear regression
+"""
+import math, copy
+import numpy as np
+import matplotlib.pyplot as plt
+plt.ion()              # enable interactive mode
+
+from lab_utils_uni import plt_contour_wgrad, plt_divergence, plt_gradients, plt_gradients_new
+#from lab_utils_uni import plt_intuition, plt_stationary, plt_update_onclick, soup_bowl
+plt.style.use('./deeplearning.mplstyle')
+
+def compute_cost_vectorized(x, y, w, b):
+    f_wb = w * x + b
+    cost = (f_wb - y) ** 2
+    total_cost = (1 / (2 * x.shape[0])) * np.sum(cost)
+
+    return total_cost
+
+def compute_gradient_vectorized(x, y, w, b):
+    f_wb = w * x + b
+    dj_dw_i = (f_wb - y) * x
+    dj_db_i = (f_wb - y)
+
+    dj_dw = np.sum(dj_dw_i)/dj_dw_i.shape[0]  #np.mean(dj_dw_i)
+    dj_db = np.sum(dj_db_i)/dj_db_i.shape[0]  #np.mean(dj_db_i)
+
+    return dj_dw, dj_db
+
+
+def gradient_descent(x, y, w_in, b_in, alpha, num_iters, cost_function, gradient_function): 
+    
+    w = copy.deepcopy(w_in) # avoid modifying global w_in
+    b = b_in
+
+    # An array to store cost J and w's at each iteration primarily for graphing later
+    J_history = []
+    p_history = []
+
+    for i in range(num_iters):
+        dj_dw, dj_db = gradient_function(x, y, w , b)     
+
+        b = b - alpha * dj_db                            
+        w = w - alpha * dj_dw                            
+
+        if np.any(np.isnan([w, b])) or np.any(np.isinf([w, b])):
+            print(f"Numerical issue at iteration {i}: w={w}, b={b}")
+            break
+
+        if i<100000:      # prevent resource exhaustion 
+            J_history.append(cost_function(x, y, w , b))
+            p_history.append([w,b])
+ 
+    return w, b, J_history, p_history #return w and J,w history for graphing
+
+
+def predict_original_scale(x_new, w, b, mu_x, sigma_x, mu_y, sigma_y):
+    # Normalize the new x
+    x_new_norm = (x_new - mu_x) / sigma_x
+
+    # Predict in normalized space
+    y_pred_norm = w * x_new_norm + b
+
+    # Denormalize the prediction
+    y_pred = y_pred_norm * sigma_y + mu_y
+
+    return y_pred
+
+
+def normalize(samples):
+    mu = np.mean(samples)
+    sigma = np.std(samples)
+    samples_norm = (samples - mu) / sigma
+    
+    return samples_norm, mu, sigma
+
+def denormalize_parameters(w_norm, b_norm, mu_x, sigma_x, mu_y, sigma_y):
+    """
+    Convert normalized weights and bias to real-scale values.
+
+    Parameters:
+    - w_norm: Weight trained in normalized space
+    - b_norm: Bias trained in normalized space
+    - mu_x: Mean of x_train
+    - sigma_x: Standard deviation of x_train
+    - mu_y: Mean of y_train
+    - sigma_y: Standard deviation of y_train
+
+    Returns:
+    - w_real: Weight in original scale
+    - b_real: Bias in original scale
+    """
+    w_real = (w_norm * sigma_y) / sigma_x
+    b_real = mu_y - (w_norm * sigma_y * mu_x / sigma_x) + (b_norm * sigma_y)
+    
+    return w_real, b_real
+
+
+def verify_samples(x_samples, y_samples, w, b):
+    
+    x_samples = np.atleast_2d(x_samples)  # ensure 2D
+    y_samples = np.ravel(y_samples)       # ensure 1D
+    
+    if np.isscalar(w):
+        y_pred = np.sum(x_samples * w, axis=1) + b        # y_pred.shape == (m,)
+    else:
+        y_pred = x_samples @ w + b                        # y_pred.shape == (m,)
+
+    error_rate = np.where(
+        y_samples != 0,
+        100 * (y_pred - y_samples) / y_samples,
+        -np.finfo(float).max        # -inf or 0
+    )
+    
+    return y_pred, error_rate
+
+"""
+def verify_samples(x_samples, y_samples, w, b):
+    results = []
+    
+    for i in range(x_samples.shape[0]):
+        x_new = x_samples[i]
+        y_pred = np.dot(w * x_new) + b
+    
+        if y_pred < 0:
+            y_pred = 0
+        
+        y_actual = y_samples[i]
+        error = 0.0 if y_actual == 0 else abs((y_pred - y_actual) * 100 / y_actual)
+        
+        print(
+            f"Original={y_actual:.2f} : "
+            f"Measured={x_new} : "
+            f"Modeling={y_pred:.2f} (mA) : "
+            f"Error(%)={error:.2f} "
+            )
+        
+        results.append((y_pred, error))
+    
+    return results
+"""
+
+x_train = np.array([3, 25, 47, 69, 91, 112])
+y_train = np.array([0, 20, 40, 60, 80, 100])
+
+x_verify = np.array([14, 36, 58, 80, 102])
+y_verify = np.array([10, 30, 50, 70, 90])
+
+plt.scatter(x_train, y_train, marker='x', c='r',label='Actual Values')
+plt.title("Small Output Current Sensing")
+plt.ylabel('Applied Current (mA)')
+plt.xlabel('Measured Current (mA)')
+plt.legend()
+plt.show()
+
+
+##############################################################
+# Scale down to avoid overflow (remember to scale back the prediction later)
+x_train_norm, mu_x, sigma_x = normalize(x_train)
+y_train_norm, mu_y, sigma_y = normalize(y_train)
+
+
+plt_gradients_new(x_train_norm, y_train_norm, compute_cost_vectorized, compute_gradient_vectorized)
+plt.show()
+##############################################################
+
+# initialize parameters
+w_init = 0.5
+b_init = 0.5
+# some gradient descent settings
+iterations = 10000
+tmp_alpha = 1.0e-3
+# run gradient descent
+w_final_norm, b_final_norm, J_hist, p_hist = gradient_descent(x_train_norm ,y_train_norm, w_init, b_init, tmp_alpha, 
+                                                    iterations, compute_cost_vectorized, compute_gradient_vectorized)
+print(f"Normalized (w,b) found by gradient descent: ({w_final_norm:8.4f},{b_final_norm:8.4f})")
+
+# plot cost versus iteration  
+fig, (ax1, ax2) = plt.subplots(1, 2, constrained_layout=True, figsize=(12,4))
+ax1.plot(J_hist[:100])
+ax2.plot(1000 + np.arange(len(J_hist[1000:])), J_hist[1000:])
+ax1.set_title("Cost vs. iteration(start)");  ax2.set_title("Cost vs. iteration (end)")
+ax1.set_ylabel('Cost')            ;  ax2.set_ylabel('Cost') 
+ax1.set_xlabel('iteration step')  ;  ax2.set_xlabel('iteration step') 
+plt.show()
+
+# Get real model parameters
+w_final, b_final = denormalize_parameters(w_final_norm, b_final_norm, mu_x, sigma_x, mu_y, sigma_y)
+print(f"\nFinal (w,b) found by gradient descent: ({w_final:8.4f},{b_final:8.4f})")
+
+# Prediction on trained samples
+print("\nPrediction on trained samples: ")
+verify_samples(x_train, y_train, w_final, b_final)
+
+# Prediction on un-trained samples
+print("\nPrediction on un-trained samples: ")
+verify_samples(x_verify, y_verify, w_final, b_final)
+
+
+# Plotting
+# - show the progress of gradient descent during its execution by plotting the 
+#   cost over iterations on a contour plot of the cost(w,b).
+fig, ax = plt.subplots(1,1, figsize=(12, 6))
+plt_contour_wgrad(x_train_norm, y_train_norm, p_hist, ax)
+
+
+fig, ax = plt.subplots(1,1, figsize=(12, 4))
+plt_contour_wgrad(x_train_norm, y_train_norm, p_hist, ax, w_range=[0.9, 1.15, 0.001], b_range=[-0.05, 0.01, 0.001],
+            contours=[1,5,10,20],resolution=0.5)
+
+plt.show(block=True)    # prevents script from exiting immediatelyLinearSegmentedColormap
