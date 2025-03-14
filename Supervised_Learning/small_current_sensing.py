@@ -98,20 +98,32 @@ def denormalize_parameters(w_norm, b_norm, mu_x, sigma_x, mu_y, sigma_y):
 
 def verify_samples(x_samples, y_samples, w, b):
     
-    x_samples = np.atleast_2d(x_samples)  # ensure 2D
+    x_samples_multi_d = np.atleast_2d(x_samples)  # ensure 2D
     y_samples = np.ravel(y_samples)       # ensure 1D
     
     if np.isscalar(w):
-        y_pred = np.sum(x_samples * w, axis=1) + b        # y_pred.shape == (m,)
+        y_pred = np.sum(x_samples_multi_d * w, axis=0) + b        # y_pred.shape == (m,)
     else:
-        y_pred = x_samples @ w + b                        # y_pred.shape == (m,)
+        y_pred = x_samples_multi_d @ w + b                        # y_pred.shape == (m,)
 
     error_rate = np.where(
         y_samples != 0,
-        100 * (y_pred - y_samples) / y_samples,
-        -np.finfo(float).max        # -inf or 0
+        abs(100 * (y_pred - y_samples) / (y_samples + 1e-10)),
+        -np.inf
+        #-np.finfo(float).max        # -inf or 0
     )
     
+    for i in range(x_samples.shape[0]):
+        x_new = x_samples[i]
+        y_actual = y_samples[i]
+        
+        print(
+            f"Original={y_samples[i]:.2f} : "
+            f"Measured={x_samples[i]} : "
+            f"Modeling={y_pred[i]:.2f} (mA) : "
+            f"Error(%)={error_rate[i]:.2f} "
+            )
+        
     return y_pred, error_rate
 
 """
@@ -173,7 +185,7 @@ tmp_alpha = 1.0e-3
 # run gradient descent
 w_final_norm, b_final_norm, J_hist, p_hist = gradient_descent(x_train_norm ,y_train_norm, w_init, b_init, tmp_alpha, 
                                                     iterations, compute_cost_vectorized, compute_gradient_vectorized)
-print(f"Normalized (w,b) found by gradient descent: ({w_final_norm:8.4f},{b_final_norm:8.4f})")
+print(f"Normalized (w,b) found by gradient descent: ({w_final_norm:8.4f},{b_final_norm:8.4f} )")
 
 # plot cost versus iteration  
 fig, (ax1, ax2) = plt.subplots(1, 2, constrained_layout=True, figsize=(12,4))
@@ -186,7 +198,7 @@ plt.show()
 
 # Get real model parameters
 w_final, b_final = denormalize_parameters(w_final_norm, b_final_norm, mu_x, sigma_x, mu_y, sigma_y)
-print(f"\nFinal (w,b) found by gradient descent: ({w_final:8.4f},{b_final:8.4f})")
+print(f"\nFinal (w,b) found by gradient descent: ({w_final:8.4f},{b_final:8.4f} )")
 
 # Prediction on trained samples
 print("\nPrediction on trained samples: ")
